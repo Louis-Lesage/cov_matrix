@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{BufReader, Error, ErrorKind};
+use std::io::{BufReader, Error, ErrorKind, BufWriter};
+use std::ops::Add;
 
 pub fn get_cov_matrix_from_csv(file_name: &str) -> Result<Vec<Vec<f32>>, Error> {
     let file = File::open(file_name)?;
@@ -42,11 +43,11 @@ fn get_expected_values(buf: Box<dyn BufRead>, dim_count: usize) -> Result<(Vec<f
         }
 
         line_values.iter().enumerate().for_each(|(i, s)| {
-            let i_val = s.parse::<f32>().unwrap();
+            let i_val = s.trim().parse::<f32>().unwrap();
             sums[i] += i_val;
 
             line_values.iter().enumerate().for_each(|(j, f)| {
-                let j_val = f.parse::<f32>().unwrap();
+                let j_val = f.trim().parse::<f32>().unwrap();
 
                 mult_sums[i][j] += i_val * j_val;
             });
@@ -69,22 +70,49 @@ fn get_expected_values(buf: Box<dyn BufRead>, dim_count: usize) -> Result<(Vec<f
     Ok((x, y))
 }
 
-fn matrix_to_csv(file: File, matrix: Vec<Vec<f32>>) -> Result<(), Error> {
-    //todo : make it work
+fn matrix_to_csv(file_name: &str, matrix: Vec<Vec<f32>>) -> Result<(), Error> {
+    let mut file = File::create(file_name)?;
+
+    for i in 0..matrix.len() {
+        let mut a = String::new();
+
+        for j in 0..matrix[i].len() {
+            let mut num: String = matrix[i][j].to_string();
+            num.push(',');
+            a.push_str(&num);
+        }
+
+        a.remove(a.len() - 1); // remove last ,
+        a.push('\n');
+        file.write_all(a.as_bytes())?;
+    }
+
     Ok(())
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::get_cov_matrix_from_csv;
+    use crate::{get_cov_matrix_from_csv, matrix_to_csv};
 
     #[test]
     fn test_get_cov_matrix_from_csv() {
         assert_eq!(get_cov_matrix_from_csv("test.csv").unwrap(),
                    vec![vec![8.0 / 3.0, 2.0 / 3.0], vec![2.0 / 3.0, 2.0 / 3.0]]);
 
+        assert_eq!(get_cov_matrix_from_csv("test2.csv").unwrap(),
+                   vec![[504.0, 360.0, 180.0], [360.0, 360.0, 0.0], [180.0, 0.0, 720.0]]);
 
-        //todo : more tests
+        assert_eq!(get_cov_matrix_from_csv("test3.csv").unwrap(),
+                   vec![[9.200195, 40.0, 27.800049], [40.0, 1000.0, 164.0], [27.800049, 164.0, 88.0]]);
+    }
+
+    #[test]
+    fn test_matrix_to_csv() {
+        assert!(matrix_to_csv("result.csv",
+                              vec![vec![9.200195, 40.0, 27.800049],
+                                   vec![40.0, 1000.0, 164.0],
+                                   vec![27.800049, 164.0, 88.0]]).is_ok(),
+                "Creating csv should work");
     }
 }
